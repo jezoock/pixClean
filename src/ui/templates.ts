@@ -1,5 +1,6 @@
 /**
- * Modular dot-stash light-DOM templates for the PixelClean Studio shell and sidebar controls.
+ * Modular dot-stash light-DOM templates for the PixelClean Studio shell,
+ * sidebar controls, viewport toolbar, palette inspector, and export modal.
  */
 
 export function renderHeaderTemplate(): string {
@@ -42,7 +43,7 @@ export function renderHeaderTemplate(): string {
               <ds-icon type="download-cloud"></ds-icon>
               <span>Exporter PNG</span>
             </ds-trigger>
-            <span slot="message">Télécharger l'image nettoyée en PNG (Nearest-Neighbor sans flou)</span>
+            <span slot="message">Prévisualiser et exporter l'image nettoyée en PNG sans flou</span>
           </ds-tooltip>
         </div>
       </ds-title-bar>
@@ -143,6 +144,7 @@ export function renderSidebarTemplate(): string {
           </span>
           <div class="pc-panel-body">
             <div class="pc-panel-actions">
+              <ds-badge id="palette-count-badge" type="info" count="0" label="{count} couleur|{count} couleurs"></ds-badge>
               <ds-tooltip position="left" container-selector=".pc-sidebar">
                 <ds-trigger id="btn-reset-palette" type="button" mods="stl-3 xs">
                   <ds-icon type="ccw"></ds-icon>
@@ -177,7 +179,14 @@ export function renderSidebarTemplate(): string {
               <ds-toggle id="despeckle" type="switch" name="despeckle"></ds-toggle>
             </div>
 
-            <div id="palette-grid" class="pc-palette-grid" aria-label="Inspecteur de palette"></div>
+            <ds-scroller
+              id="palette-scroller"
+              orientation="vertical"
+              label="Inspecteur de palette"
+              class="pc-palette-scroller"
+            >
+              <div id="palette-grid" class="pc-palette-grid"></div>
+            </ds-scroller>
           </div>
         </ds-panel>
 
@@ -187,6 +196,22 @@ export function renderSidebarTemplate(): string {
             <span>Export PNG</span>
           </span>
           <div class="pc-panel-body">
+            <div class="pc-export-mini-preview">
+              <ds-thumb
+                id="sidebar-result-thumb"
+                ratio="1"
+                label="Aperçu nettoyé"
+                class="pc-pixel-thumb"
+              ></ds-thumb>
+              <div class="pc-export-mini-meta">
+                <ds-text type="code" inline id="sidebar-export-dims">—</ds-text>
+                <ds-trigger id="btn-quick-export" type="button" mods="stl-2 xs">
+                  <ds-icon type="download-cloud"></ds-icon>
+                  <span>Téléchargement rapide</span>
+                </ds-trigger>
+              </div>
+            </div>
+
             <ds-field
               id="field-export-scale"
               label="Facteur d'échelle (Nearest-Neighbor)"
@@ -212,20 +237,134 @@ export function renderMainTemplate(): string {
     <ds-block section mods="full-width" label="Espace de prévisualisation" class="pc-main">
       <div class="pc-toolbar">
         <div class="pc-toolbar__group">
-          <ds-trigger id="view-split" type="button" mods="stl-3 xs" class="is-active">Avant / Après</ds-trigger>
-          <ds-trigger id="view-side" type="button" mods="stl-3 xs">Côte à côte</ds-trigger>
-          <ds-trigger id="view-result" type="button" mods="stl-3 xs">Résultat</ds-trigger>
-          <ds-trigger id="toggle-grid" type="button" mods="stl-3 xs" class="is-active">Grille</ds-trigger>
-          <ds-trigger id="btn-reset-view" type="button" mods="stl-3 xs">Zoom 1:1</ds-trigger>
+          <ds-toggle-group
+            id="view-mode-group"
+            type="icon"
+            name="view-mode"
+            count="[1, 1]"
+            label="Mode d'affichage du viewport"
+            class="pc-segmented"
+          >
+            <ds-toggle value="split" checked label="Vue Avant / Après">
+              <ds-icon type="sliders"></ds-icon>
+              <span>Avant / Après</span>
+            </ds-toggle>
+            <ds-toggle value="side" label="Vue Côte à côte">
+              <ds-icon type="docs"></ds-icon>
+              <span>Côte à côte</span>
+            </ds-toggle>
+            <ds-toggle value="result" label="Vue Résultat uniquement">
+              <ds-icon type="picture"></ds-icon>
+              <span>Résultat</span>
+            </ds-toggle>
+          </ds-toggle-group>
+
+          <ds-tooltip position="bottom" container-selector=".pc-shell">
+            <ds-toggle id="toggle-grid" type="icon" name="show-grid" checked label="Afficher ou masquer la grille">
+              <ds-icon type="eye"></ds-icon>
+              <span>Grille</span>
+            </ds-toggle>
+            <span slot="message">Afficher la grille de découpage sur l'image source</span>
+          </ds-tooltip>
+
+          <ds-tooltip position="bottom" container-selector=".pc-shell">
+            <ds-trigger id="btn-reset-view" type="button" mods="stl-3 xs">
+              <ds-icon type="search"></ds-icon>
+              <span>Zoom 1:1</span>
+            </ds-trigger>
+            <span slot="message">Recentrer le viewport et réinitialiser le zoom</span>
+          </ds-tooltip>
+
+          <ds-loader
+            id="processing-loader"
+            inline
+            size="sm"
+            label="Traitement de l'image en cours"
+            hidden
+          ></ds-loader>
         </div>
-        <div id="stats-label" class="pc-toolbar__stats">Aucune image</div>
+
+        <div class="pc-toolbar__stats" aria-live="polite">
+          <ds-text type="code" inline id="stat-source">Source —</ds-text>
+          <ds-badge id="stat-grid" type="info">Grille —</ds-badge>
+          <ds-badge id="stat-colors" type="info">0 couleurs</ds-badge>
+          <ds-badge id="stat-zoom">200%</ds-badge>
+        </div>
       </div>
 
       <div id="stage" class="pc-stage">
         <canvas id="viewport"></canvas>
-        <div class="pc-drop-hint">Glissez une image, importez ou collez (Ctrl+V) • Molette : zoom • Glisser : déplacer</div>
+      </div>
+
+      <div class="pc-stage-footer">
+        <ds-alert
+          id="stage-alert"
+          type="info"
+          dismissible
+          labels='{"dismiss": "Masquer l\u2019aide", "prefix": {"info": "Aide :", "error": "Erreur :", "success": "Succès :", "warning": "Attention :"}}'
+        >
+          Glissez une image, importez ou collez (<ds-text type="code" inline>Ctrl+V</ds-text>) • Molette : zoom • Glisser : déplacer • Rideau central : comparer.
+        </ds-alert>
       </div>
     </ds-block>
+  `;
+}
+
+export function renderExportModalTemplate(): string {
+  return `
+    <ds-modal id="export-modal" overlay>
+      <ds-title section slot="title"><h2>Exporter en PNG (Nearest-Neighbor)</h2></ds-title>
+      <p slot="description" class="pc-modal-desc">
+        Aperçu net sans interpolation. Choisissez le facteur d'échelle et le nom de fichier avant le téléchargement.
+      </p>
+
+      <div class="pc-modal-body">
+        <div class="pc-modal-preview">
+          <ds-thumb
+            id="export-preview-thumb"
+            ratio="1"
+            label="Aperçu d'export PNG"
+            class="pc-pixel-thumb pc-pixel-thumb--lg"
+          ></ds-thumb>
+          <div class="pc-modal-badges">
+            <ds-badge id="modal-badge-grid" type="info">Grille —</ds-badge>
+            <ds-badge id="modal-badge-output" type="success">Export —</ds-badge>
+            <ds-badge id="modal-badge-colors">0 couleurs</ds-badge>
+          </div>
+        </div>
+
+        <div class="pc-modal-form">
+          <ds-field id="field-export-filename" label="Nom du fichier">
+            <input id="export-filename" type="text" value="pixelclean-sprite.png" />
+          </ds-field>
+
+          <ds-field
+            id="field-modal-export-scale"
+            label="Facteur d'échelle"
+            hint="Chaque pixel logique est multiplié exactement sans lissage."
+          >
+            <ds-select id="select-modal-export-scale" name="modal-export-scale">
+              <option value="1">1× (natif)</option>
+              <option value="2">2×</option>
+              <option value="4" selected>4×</option>
+              <option value="8">8×</option>
+              <option value="16">16×</option>
+            </ds-select>
+          </ds-field>
+        </div>
+
+        <div class="pc-modal-actions">
+          <ds-trigger id="btn-modal-cancel" type="button" mods="stl-3 sm">
+            <ds-icon type="cancel"></ds-icon>
+            <span>Fermer</span>
+          </ds-trigger>
+          <ds-trigger id="btn-modal-download" type="button" mods="stl-1 sm">
+            <ds-icon type="download-cloud"></ds-icon>
+            <span>Télécharger PNG</span>
+          </ds-trigger>
+        </div>
+      </div>
+    </ds-modal>
   `;
 }
 
@@ -238,6 +377,7 @@ export function renderAppShellTemplate(): string {
         ${renderSidebarTemplate()}
         ${renderMainTemplate()}
       </div>
+      ${renderExportModalTemplate()}
       <ds-toaster id="notices" mods="success" position="bottom,right" closing-delay="4000"></ds-toaster>
     </div>
   `;
