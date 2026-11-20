@@ -19,10 +19,15 @@ import {
 } from '../engine';
 
 import {
+  type DSAlertElement,
+  type DSBadgeElement,
+  type DSModalElement,
   type DSSelectElement,
   type DSSelectValueChangeDetail,
+  type DSThumbElement,
   type DSToasterElement,
   type DSToggleEventDetail,
+  type DSToggleGroupEventDetail,
   type RefreshableElement,
 } from './ds-types';
 import { renderAppShellTemplate } from './templates';
@@ -74,16 +79,18 @@ export function mountApp(root: HTMLElement): void {
 
   root.innerHTML = renderAppShellTemplate();
 
-  // DOM references
+  // DOM references — Header & Notifications
   const toaster = root.querySelector<DSToasterElement>('#notices')!;
   const fileInput = root.querySelector<HTMLInputElement>('#file-input')!;
   const btnImport = root.querySelector<HTMLElement>('#btn-import')!;
   const btnSample = root.querySelector<HTMLElement>('#btn-sample')!;
   const btnExport = root.querySelector<HTMLElement>('#btn-export')!;
+  const btnQuickExport = root.querySelector<HTMLElement>('#btn-quick-export')!;
   const btnAutodetect = root.querySelector<HTMLElement>('#btn-autodetect')!;
   const btnResetPalette = root.querySelector<HTMLElement>('#btn-reset-palette')!;
   const btnResetView = root.querySelector<HTMLElement>('#btn-reset-view')!;
 
+  // Sidebar controls
   const rangePixelSize = root.querySelector<RefreshableElement>('#range-pixel-size')!;
   const inputPixelSize = root.querySelector<HTMLInputElement>('#pixel-size')!;
   const valPixelSize = root.querySelector<HTMLElement>('#pixel-size-val')!;
@@ -111,17 +118,38 @@ export function mountApp(root: HTMLElement): void {
 
   const toggleDespeckle = root.querySelector<HTMLElement>('#despeckle')!;
   const selectExportScale = root.querySelector<DSSelectElement>('#select-export-scale')!;
-  const paletteGrid = root.querySelector<HTMLElement>('#palette-grid')!;
 
-  const viewSplitBtn = root.querySelector<HTMLElement>('#view-split')!;
-  const viewSideBtn = root.querySelector<HTMLElement>('#view-side')!;
-  const viewResultBtn = root.querySelector<HTMLElement>('#view-result')!;
-  const toggleGridBtn = root.querySelector<HTMLElement>('#toggle-grid')!;
-  const statsLabel = root.querySelector<HTMLElement>('#stats-label')!;
+  // Palette & mini preview
+  const paletteCountBadge = root.querySelector<DSBadgeElement>('#palette-count-badge')!;
+  const paletteScroller = root.querySelector<RefreshableElement>('#palette-scroller')!;
+  const paletteGrid = root.querySelector<HTMLElement>('#palette-grid')!;
+  const sidebarResultThumb = root.querySelector<DSThumbElement>('#sidebar-result-thumb')!;
+  const sidebarExportDims = root.querySelector<HTMLElement>('#sidebar-export-dims')!;
+
+  // Viewport toolbar & stage
+  const viewModeGroup = root.querySelector<HTMLElement>('#view-mode-group')!;
+  const toggleGrid = root.querySelector<HTMLElement>('#toggle-grid')!;
+  const processingLoader = root.querySelector<HTMLElement>('#processing-loader')!;
+  const statSource = root.querySelector<HTMLElement>('#stat-source')!;
+  const statGrid = root.querySelector<HTMLElement>('#stat-grid')!;
+  const statColors = root.querySelector<HTMLElement>('#stat-colors')!;
+  const statZoom = root.querySelector<HTMLElement>('#stat-zoom')!;
+  const stageAlert = root.querySelector<DSAlertElement>('#stage-alert')!;
 
   const stage = root.querySelector<HTMLElement>('#stage')!;
   const viewport = root.querySelector<HTMLCanvasElement>('#viewport')!;
   const ctx = viewport.getContext('2d')!;
+
+  // Export modal
+  const exportModal = root.querySelector<DSModalElement>('#export-modal')!;
+  const exportPreviewThumb = root.querySelector<DSThumbElement>('#export-preview-thumb')!;
+  const modalBadgeGrid = root.querySelector<HTMLElement>('#modal-badge-grid')!;
+  const modalBadgeOutput = root.querySelector<HTMLElement>('#modal-badge-output')!;
+  const modalBadgeColors = root.querySelector<HTMLElement>('#modal-badge-colors')!;
+  const inputExportFilename = root.querySelector<HTMLInputElement>('#export-filename')!;
+  const selectModalExportScale = root.querySelector<DSSelectElement>('#select-modal-export-scale')!;
+  const btnModalCancel = root.querySelector<HTMLElement>('#btn-modal-cancel')!;
+  const btnModalDownload = root.querySelector<HTMLElement>('#btn-modal-download')!;
 
   // Offscreen canvas for cleaned pixel art
   const resultCanvas = document.createElement('canvas');
@@ -129,6 +157,61 @@ export function mountApp(root: HTMLElement): void {
   function notify(message: string): void {
     toaster.messages = [message];
     void toaster.displayToast?.();
+  }
+
+  function defaultExportFilename(result: ProcessResult, scale: number): string {
+    return `pixelclean-${result.gridWidth}x${result.gridHeight}-${scale}x.png`;
+  }
+
+  function syncExportScaleSelect(selectHost: DSSelectElement, scale: number): void {
+    const nativeSelect = selectHost.querySelector<HTMLSelectElement>('select');
+    if (nativeSelect && nativeSelect.value !== String(scale)) {
+      nativeSelect.value = String(scale);
+      const labelEl = selectHost.querySelector<HTMLElement>('.ds-select__label');
+      const opt = nativeSelect.selectedOptions[0];
+      if (labelEl && opt) {
+        labelEl.textContent = opt.textContent;
+      }
+    }
+  }
+
+  function updateExportMetadata(): void {
+    if (!state.result) return;
+    const scale = state.exportScale;
+    const outW = state.result.gridWidth * scale;
+    const outH = state.result.gridHeight * scale;
+
+    sidebarExportDims.textContent = `${outW}×${outH} px (${scale}×)`;
+    modalBadgeGrid.textContent = `Grille ${state.result.gridWidth}×${state.result.gridHeight}`;
+    modalBadgeOutput.textContent = `Sortie ${outW}×${outH} px`;
+    modalBadgeColors.textContent = `${state.result.palette.length} couleurs`;
+    inputExportFilename.value = defaultExportFilename(state.result, scale);
+  }
+
+  function triggerPngDownload(filename?: string): void {
+    if (!state.result) return;
+    const scale = state.exportScale;
+    const { dataUrl, width, height } = exportPixelBufferToPngDataUrl(state.result.buffer, scale);
+    const resolvedName = (filename?.trim() || defaultExportFilename(state.result, scale)).replace(
+      /(?<!\.png)$/i,
+      '.png',
+    );
+
+    const a = document.createElement('a');
+    a.download = resolvedName;
+    a.href = dataUrl;
+    a.click();
+    notify(`PNG exporté : ${resolvedName} (${width}×${height})`);
+  }
+
+  function openExportModal(): void {
+    if (!state.result) return;
+    const previewScale = Math.max(1, Math.min(8, Math.ceil(192 / Math.max(state.result.gridWidth, state.result.gridHeight))));
+    const { dataUrl } = exportPixelBufferToPngDataUrl(state.result.buffer, previewScale);
+    exportPreviewThumb.src = dataUrl;
+    syncExportScaleSelect(selectModalExportScale, state.exportScale);
+    updateExportMetadata();
+    exportModal.shown = true;
   }
 
   function syncControls(): void {
@@ -180,10 +263,17 @@ export function mountApp(root: HTMLElement): void {
     paletteGrid.innerHTML = '';
     if (!state.result) return;
 
+    const totalOpaque = state.result.palette.reduce((acc, entry) => acc + entry.count, 0) || 1;
+    paletteCountBadge.count = state.result.palette.length;
+
     for (const entry of state.result.palette) {
+      const pct = ((entry.count / totalOpaque) * 100).toFixed(1);
+      const tooltip = document.createElement('ds-tooltip');
+      tooltip.setAttribute('position', 'top');
+      tooltip.setAttribute('container-selector', '.pc-sidebar');
+
       const item = document.createElement('label');
       item.className = 'pc-swatch';
-      item.title = `${entry.hex} (${entry.count} px) — cliquer pour modifier`;
 
       const swatch = document.createElement('span');
       swatch.className = 'pc-swatch__color';
@@ -193,18 +283,30 @@ export function mountApp(root: HTMLElement): void {
       label.className = 'pc-swatch__hex';
       label.textContent = entry.hex;
 
+      const countBadge = document.createElement('ds-badge');
+      countBadge.className = 'pc-swatch__count';
+      countBadge.textContent = String(entry.count);
+
       const picker = document.createElement('input');
       picker.type = 'color';
       picker.className = 'pc-swatch__picker';
+      picker.setAttribute('aria-label', `Modifier la couleur ${entry.hex}`);
       picker.value = entry.hex.toLowerCase();
       picker.addEventListener('input', () => {
         state.paletteOverrides.set(entry.index, hexToRgb(picker.value));
         recompute();
       });
 
-      item.append(swatch, label, picker);
-      paletteGrid.append(item);
+      const msg = document.createElement('span');
+      msg.slot = 'message';
+      msg.textContent = `${entry.hex} • RGB(${entry.rgb.join(', ')}) • ${entry.count} px (${pct}%) — cliquer pour modifier`;
+
+      item.append(swatch, label, countBadge, picker);
+      tooltip.append(item, msg);
+      paletteGrid.append(tooltip);
     }
+
+    void paletteScroller.refresh?.();
   }
 
   function recompute(): void {
@@ -224,9 +326,13 @@ export function mountApp(root: HTMLElement): void {
     state.result = result;
     pixelBufferToCanvas(result.buffer, resultCanvas);
 
-    statsLabel.textContent =
-      `Source ${state.sourceCanvas.width}×${state.sourceCanvas.height} → ` +
-      `Grille ${result.gridWidth}×${result.gridHeight} • ${result.palette.length} couleurs`;
+    statSource.textContent = `Source ${state.sourceCanvas.width}×${state.sourceCanvas.height}`;
+    statGrid.textContent = `Grille ${result.gridWidth}×${result.gridHeight}`;
+    statColors.textContent = `${result.palette.length} couleurs`;
+
+    const thumbScale = Math.max(1, Math.min(6, Math.ceil(96 / Math.max(result.gridWidth, result.gridHeight))));
+    sidebarResultThumb.src = exportPixelBufferToPngDataUrl(result.buffer, thumbScale).dataUrl;
+    updateExportMetadata();
 
     renderPalette();
     drawViewport();
@@ -239,6 +345,8 @@ export function mountApp(root: HTMLElement): void {
     viewport.height = Math.max(1, Math.floor(rect.height * dpr));
     viewport.style.width = `${rect.width}px`;
     viewport.style.height = `${rect.height}px`;
+
+    statZoom.textContent = `${Math.round(state.zoom * 100)}%`;
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, rect.width, rect.height);
@@ -376,9 +484,20 @@ export function mountApp(root: HTMLElement): void {
   }
 
   function loadImageFile(file: File): void {
-    void loadBlobToCanvas(file).then((canvas) => {
-      loadCanvas(canvas, true, true);
-    });
+    processingLoader.hidden = false;
+    void loadBlobToCanvas(file)
+      .then((canvas) => {
+        loadCanvas(canvas, true, true);
+      })
+      .catch(() => {
+        stageAlert.type = 'error';
+        stageAlert.removeAttribute('hidden');
+        stageAlert.textContent = `Impossible de décoder le fichier « ${file.name} ». Formats supportés : PNG, JPEG, WebP.`;
+        notify('Erreur lors du chargement de l’image');
+      })
+      .finally(() => {
+        processingLoader.hidden = true;
+      });
   }
 
   // Garde sur disabled conforme au contrat d'accessibilité de ds-trigger
@@ -417,16 +536,14 @@ export function mountApp(root: HTMLElement): void {
     notify('Palette réinitialisée');
   });
 
-  onTriggerClick(btnExport, () => {
-    if (!state.result) return;
-    const scale = state.exportScale;
-    const { dataUrl, width, height } = exportPixelBufferToPngDataUrl(state.result.buffer, scale);
-
-    const a = document.createElement('a');
-    a.download = `pixelclean-${state.result.gridWidth}x${state.result.gridHeight}-${scale}x.png`;
-    a.href = dataUrl;
-    a.click();
-    notify(`PNG exporté en ${width}×${height} (${scale}×)`);
+  onTriggerClick(btnExport, () => openExportModal());
+  onTriggerClick(btnQuickExport, () => triggerPngDownload());
+  onTriggerClick(btnModalCancel, () => {
+    exportModal.shown = false;
+  });
+  onTriggerClick(btnModalDownload, () => {
+    triggerPngDownload(inputExportFilename.value);
+    exportModal.shown = false;
   });
 
   inputPixelSize.addEventListener('input', () => {
@@ -491,29 +608,36 @@ export function mountApp(root: HTMLElement): void {
     recompute();
   });
 
-  selectExportScale.addEventListener('valueChange', (e: Event) => {
-    const detail = (e as CustomEvent<DSSelectValueChangeDetail>).detail;
-    const value = Number(detail?.selectedOption?.value);
+  const handleExportScaleChange = (value: number, peerSelect: DSSelectElement) => {
     if (!Number.isNaN(value) && value >= 1) {
       state.exportScale = value;
+      syncExportScaleSelect(peerSelect, value);
+      updateExportMetadata();
+    }
+  };
+
+  selectExportScale.addEventListener('valueChange', (e: Event) => {
+    const detail = (e as CustomEvent<DSSelectValueChangeDetail>).detail;
+    handleExportScaleChange(Number(detail?.selectedOption?.value), selectModalExportScale);
+  });
+
+  selectModalExportScale.addEventListener('valueChange', (e: Event) => {
+    const detail = (e as CustomEvent<DSSelectValueChangeDetail>).detail;
+    handleExportScaleChange(Number(detail?.selectedOption?.value), selectExportScale);
+  });
+
+  viewModeGroup.addEventListener('toggleValueChange', (e: Event) => {
+    const detail = (e as CustomEvent<DSToggleGroupEventDetail>).detail;
+    const mode = detail?.value?.[0];
+    if (mode === 'split' || mode === 'side' || mode === 'result') {
+      state.viewMode = mode;
+      drawViewport();
     }
   });
 
-  const setViewMode = (mode: ViewMode) => {
-    state.viewMode = mode;
-    viewSplitBtn.classList.toggle('is-active', mode === 'split');
-    viewSideBtn.classList.toggle('is-active', mode === 'side');
-    viewResultBtn.classList.toggle('is-active', mode === 'result');
-    drawViewport();
-  };
-
-  onTriggerClick(viewSplitBtn, () => setViewMode('split'));
-  onTriggerClick(viewSideBtn, () => setViewMode('side'));
-  onTriggerClick(viewResultBtn, () => setViewMode('result'));
-
-  onTriggerClick(toggleGridBtn, () => {
-    state.showGrid = !state.showGrid;
-    toggleGridBtn.classList.toggle('is-active', state.showGrid);
+  toggleGrid.addEventListener('toggle', (e: Event) => {
+    const detail = (e as CustomEvent<DSToggleEventDetail>).detail;
+    state.showGrid = Boolean(detail?.checked);
     drawViewport();
   });
 
