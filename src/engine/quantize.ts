@@ -1,5 +1,5 @@
-import { redmeanDistSq, rgbToHex } from './color';
-import type { PaletteEntry, QuantizationResult, RGB } from './types';
+import { redmeanDistSq, rgbToHex } from './color.ts';
+import type { PaletteEntry, QuantizationResult, RGB } from './types.ts';
 
 /**
  * Deterministic K-Means++ color quantization with perceptual Redmean distance (zero dithering).
