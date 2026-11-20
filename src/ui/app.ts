@@ -18,22 +18,16 @@ import {
   type SamplingMode,
 } from '../engine';
 
+import {
+  type DSSelectElement,
+  type DSSelectValueChangeDetail,
+  type DSToasterElement,
+  type DSToggleEventDetail,
+  type RefreshableElement,
+} from './ds-types';
+import { renderAppShellTemplate } from './templates';
+
 type ViewMode = 'split' | 'side' | 'result';
-
-interface RefreshableElement extends HTMLElement {
-  refresh?: () => Promise<void>;
-}
-
-interface DSToasterElement extends HTMLElement {
-  messages?: string | string[];
-  displayToast?: () => Promise<void>;
-}
-
-interface DSToggleEventDetail {
-  name?: string;
-  value?: unknown;
-  checked?: boolean;
-}
 
 interface AppState {
   sourceCanvas: HTMLCanvasElement | null;
@@ -78,166 +72,7 @@ export function mountApp(root: HTMLElement): void {
     paletteOverrides: new Map(),
   };
 
-  root.innerHTML = `
-    <div class="pc-shell">
-      <header class="pc-header">
-        <div class="pc-brand">
-          <div class="pc-brand__logo" aria-hidden="true"></div>
-          <h1 class="pc-brand__title">PixelClean Studio</h1>
-          <span class="pc-brand__badge">dot-stash</span>
-        </div>
-
-        <div class="pc-header-actions">
-          <input id="file-input" class="pc-file-input" type="file" accept="image/png,image/jpeg,image/webp" />
-          <ds-trigger id="btn-import" type="button" mods="stl-2 sm">Importer</ds-trigger>
-          <ds-trigger id="btn-sample" type="button" mods="stl-3 sm">Sprite de test</ds-trigger>
-          <ds-trigger id="btn-export" type="button" mods="stl-1 sm">Exporter PNG</ds-trigger>
-        </div>
-      </header>
-
-      <div class="pc-workspace">
-        <aside class="pc-sidebar">
-          <ds-panel type="collapsible" level="2" expanded>
-            <span slot="title">Grille &amp; Anti-Mixels</span>
-            <div class="pc-panel-body">
-              <div class="pc-panel-actions">
-                <ds-trigger id="btn-autodetect" type="button" mods="stl-2 xs">Auto-détecter</ds-trigger>
-              </div>
-
-              <div class="pc-range-group">
-                <div class="pc-range-label">
-                  <label for="pixel-size">Taille du pixel source</label>
-                  <span id="pixel-size-val" class="pc-range-label__value">8 px</span>
-                </div>
-                <ds-range id="range-pixel-size" labels='{"valueText": "{value} pixels"}'>
-                  <input id="pixel-size" type="range" min="1" max="32" step="1" value="8" />
-                </ds-range>
-              </div>
-
-              <ds-field
-                id="field-target-width"
-                label="Largeur cible (grille)"
-                hint="Synchronisée avec la taille du pixel source."
-              >
-                <input id="target-width" type="number" min="4" max="512" step="1" value="28" />
-                <span slot="suffix">px</span>
-              </ds-field>
-
-              <div class="pc-row-2">
-                <div class="pc-range-group">
-                  <div class="pc-range-label">
-                    <label for="offset-x">Décalage X</label>
-                    <span id="offset-x-val" class="pc-range-label__value">3 px</span>
-                  </div>
-                  <ds-range id="range-offset-x" labels='{"valueText": "{value} px"}'>
-                    <input id="offset-x" type="range" min="0" max="31" step="1" value="3" />
-                  </ds-range>
-                </div>
-
-                <div class="pc-range-group">
-                  <div class="pc-range-label">
-                    <label for="offset-y">Décalage Y</label>
-                    <span id="offset-y-val" class="pc-range-label__value">2 px</span>
-                  </div>
-                  <ds-range id="range-offset-y" labels='{"valueText": "{value} px"}'>
-                    <input id="offset-y" type="range" min="0" max="31" step="1" value="2" />
-                  </ds-range>
-                </div>
-              </div>
-
-              <ds-field
-                id="field-sampling"
-                label="Échantillonnage"
-                hint="Majoritaire recommandé pour retirer les mixels."
-              >
-                <select id="sampling-mode">
-                  <option value="mode" selected>Majoritaire (Mode quantifié)</option>
-                  <option value="center">Centre de cellule</option>
-                  <option value="median">Médiane</option>
-                  <option value="average">Moyenne</option>
-                </select>
-              </ds-field>
-            </div>
-          </ds-panel>
-
-          <ds-panel type="collapsible" level="2" expanded>
-            <span slot="title">Palette &amp; Aplats</span>
-            <div class="pc-panel-body">
-              <div class="pc-panel-actions">
-                <ds-trigger id="btn-reset-palette" type="button" mods="stl-3 xs">Réinitialiser</ds-trigger>
-              </div>
-
-              <div class="pc-range-group">
-                <div class="pc-range-label">
-                  <label for="max-colors">Couleurs maximum</label>
-                  <span id="max-colors-val" class="pc-range-label__value">10</span>
-                </div>
-                <ds-range id="range-max-colors" labels='{"valueText": "{value} couleurs"}'>
-                  <input id="max-colors" type="range" min="2" max="64" step="1" value="10" />
-                </ds-range>
-              </div>
-
-              <div class="pc-range-group">
-                <div class="pc-range-label">
-                  <label for="alpha-threshold">Seuil Alpha</label>
-                  <span id="alpha-threshold-val" class="pc-range-label__value">128</span>
-                </div>
-                <ds-range id="range-alpha" labels='{"valueText": "{value}"}'>
-                  <input id="alpha-threshold" type="range" min="1" max="255" step="1" value="128" />
-                </ds-range>
-              </div>
-
-              <div class="pc-toggle-row">
-                <label for="despeckle">Filtre anti-pixels isolés</label>
-                <ds-toggle id="despeckle" type="switch" name="despeckle"></ds-toggle>
-              </div>
-
-              <div id="palette-grid" class="pc-palette-grid" aria-label="Inspecteur de palette"></div>
-            </div>
-          </ds-panel>
-
-          <ds-panel type="collapsible" level="2" expanded>
-            <span slot="title">Export PNG</span>
-            <div class="pc-panel-body">
-              <ds-field
-                id="field-export-scale"
-                label="Facteur d'échelle (Nearest-Neighbor)"
-                hint="Export sans flou, pixels nets."
-              >
-                <select id="export-scale">
-                  <option value="1">1× (natif)</option>
-                  <option value="2">2×</option>
-                  <option value="4" selected>4×</option>
-                  <option value="8">8×</option>
-                  <option value="16">16×</option>
-                </select>
-              </ds-field>
-            </div>
-          </ds-panel>
-        </aside>
-
-        <main class="pc-main">
-          <div class="pc-toolbar">
-            <div class="pc-toolbar__group">
-              <ds-trigger id="view-split" type="button" mods="stl-3 xs" class="is-active">Avant / Après</ds-trigger>
-              <ds-trigger id="view-side" type="button" mods="stl-3 xs">Côte à côte</ds-trigger>
-              <ds-trigger id="view-result" type="button" mods="stl-3 xs">Résultat</ds-trigger>
-              <ds-trigger id="toggle-grid" type="button" mods="stl-3 xs" class="is-active">Grille</ds-trigger>
-              <ds-trigger id="btn-reset-view" type="button" mods="stl-3 xs">Zoom 1:1</ds-trigger>
-            </div>
-            <div id="stats-label" class="pc-toolbar__stats">Aucune image</div>
-          </div>
-
-          <div id="stage" class="pc-stage">
-            <canvas id="viewport"></canvas>
-            <div class="pc-drop-hint">Glissez une image, importez ou collez (Ctrl+V) • Molette : zoom • Glisser : déplacer</div>
-          </div>
-        </main>
-      </div>
-
-      <ds-toaster id="notices" mods="success" position="bottom,right" closing-delay="4000"></ds-toaster>
-    </div>
-  `;
+  root.innerHTML = renderAppShellTemplate();
 
   // DOM references
   const toaster = root.querySelector<DSToasterElement>('#notices')!;
@@ -264,7 +99,7 @@ export function mountApp(root: HTMLElement): void {
   const inputOffsetY = root.querySelector<HTMLInputElement>('#offset-y')!;
   const valOffsetY = root.querySelector<HTMLElement>('#offset-y-val')!;
 
-  const selectSampling = root.querySelector<HTMLSelectElement>('#sampling-mode')!;
+  const selectSampling = root.querySelector<DSSelectElement>('#select-sampling-mode')!;
 
   const rangeMaxColors = root.querySelector<RefreshableElement>('#range-max-colors')!;
   const inputMaxColors = root.querySelector<HTMLInputElement>('#max-colors')!;
@@ -275,7 +110,7 @@ export function mountApp(root: HTMLElement): void {
   const valAlpha = root.querySelector<HTMLElement>('#alpha-threshold-val')!;
 
   const toggleDespeckle = root.querySelector<HTMLElement>('#despeckle')!;
-  const selectExportScale = root.querySelector<HTMLSelectElement>('#export-scale')!;
+  const selectExportScale = root.querySelector<DSSelectElement>('#select-export-scale')!;
   const paletteGrid = root.querySelector<HTMLElement>('#palette-grid')!;
 
   const viewSplitBtn = root.querySelector<HTMLElement>('#view-split')!;
@@ -628,9 +463,13 @@ export function mountApp(root: HTMLElement): void {
     recompute();
   });
 
-  selectSampling.addEventListener('change', () => {
-    state.samplingMode = selectSampling.value as SamplingMode;
-    recompute();
+  selectSampling.addEventListener('valueChange', (e: Event) => {
+    const detail = (e as CustomEvent<DSSelectValueChangeDetail>).detail;
+    const value = detail?.selectedOption?.value;
+    if (value) {
+      state.samplingMode = value as SamplingMode;
+      recompute();
+    }
   });
 
   inputMaxColors.addEventListener('input', () => {
@@ -652,8 +491,12 @@ export function mountApp(root: HTMLElement): void {
     recompute();
   });
 
-  selectExportScale.addEventListener('change', () => {
-    state.exportScale = Number(selectExportScale.value);
+  selectExportScale.addEventListener('valueChange', (e: Event) => {
+    const detail = (e as CustomEvent<DSSelectValueChangeDetail>).detail;
+    const value = Number(detail?.selectedOption?.value);
+    if (!Number.isNaN(value) && value >= 1) {
+      state.exportScale = value;
+    }
   });
 
   const setViewMode = (mode: ViewMode) => {
