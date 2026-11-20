@@ -17,11 +17,20 @@ body {
   line-height: 1.45;
 }
 
+#app {
+  height: 100vh;
+}
+
 .pc-shell {
   display: grid;
   grid-template-rows: auto 1fr;
-  height: 100vh;
+  height: 100%;
+  min-height: 480px;
   overflow: hidden;
+
+  &--no-header {
+    grid-template-rows: 1fr;
+  }
 }
 
 .pc-header {

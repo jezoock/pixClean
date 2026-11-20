@@ -1,5 +1,5 @@
 {
-  "name": "pixelclean-dot-stash",
+  "name": "pixclean",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -7,9 +7,24 @@
   "engines": {
     "node": ">=22.18"
   },
+  "exports": {
+    ".": {
+      "types": "./dist-lib/index.d.ts",
+      "import": "./dist-lib/index.js"
+    },
+    "./engine": {
+      "types": "./dist-lib/engine/index.d.ts",
+      "import": "./dist-lib/engine.js"
+    },
+    "./style.css": "./dist-lib/pixclean.css"
+  },
+  "files": [
+    "dist-lib/"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "build:lib": "vite build --config vite.lib.config.ts && tsc -p tsconfig.lib.json",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "typecheck:tests": "tsc -p tsconfig.test.json --noEmit",

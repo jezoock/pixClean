@@ -29,5 +29,21 @@ jobs:
       - name: Typecheck tests
         run: npm run typecheck:tests
 
-      - name: Build application
+      - name: Build standalone application
         run: npm run build
+
+      - name: Build multi-entry library & declarations
+        run: npm run build:lib
+
+      - name: Verify headless engine bundle runs in pure Node (zero DOM)
+        run: |
+          node -e "
+            import('./dist-lib/engine.js').then((engine) => {
+              const buf = engine.createPixelBuffer(16, 16);
+              const res = engine.processPixelArt(buf, engine.DEFAULT_PROCESS_OPTIONS);
+              if (res.gridWidth !== 2 || res.gridHeight !== 2) {
+                throw new Error('Unexpected grid dimensions from dist-lib/engine.js');
+              }
+              console.log('dist-lib/engine.js OK:', Object.keys(engine).length, 'exports');
+            });
+          "
