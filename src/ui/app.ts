@@ -1,11 +1,22 @@
 import {
+  canvasToPixelBuffer,
+  exportPixelBufferToPngDataUrl,
+  generateCorruptedSampleSprite,
+  loadBlobToCanvas,
+  pixelBufferToCanvas,
+} from '../adapters';
+import {
   autoDetectGrid,
+  clampGridGeometry,
+  computeGridDimensions,
+  derivePixelSizeFromTargetWidth,
   hexToRgb,
   processPixelArt,
+  type PixelBuffer,
   type ProcessResult,
+  type RGB,
   type SamplingMode,
-} from '../engine/pixel-engine';
-import { generateCorruptedSampleSprite } from '../engine/sample-sprite';
+} from '../engine';
 
 type ViewMode = 'split' | 'side' | 'result';
 
@@ -26,7 +37,7 @@ interface DSToggleEventDetail {
 
 interface AppState {
   sourceCanvas: HTMLCanvasElement | null;
-  sourceData: ImageData | null;
+  sourceData: PixelBuffer | null;
   result: ProcessResult | null;
   pixelSize: number;
   offsetX: number;
@@ -42,7 +53,7 @@ interface AppState {
   zoom: number;
   panX: number;
   panY: number;
-  paletteOverrides: Map<number, [number, number, number]>;
+  paletteOverrides: Map<number, RGB>;
 }
 
 export function mountApp(root: HTMLElement): void {
@@ -279,7 +290,6 @@ export function mountApp(root: HTMLElement): void {
 
   // Offscreen canvas for cleaned pixel art
   const resultCanvas = document.createElement('canvas');
-  const resultCtx = resultCanvas.getContext('2d')!;
 
   function notify(message: string): void {
     toaster.messages = [message];
@@ -287,6 +297,15 @@ export function mountApp(root: HTMLElement): void {
   }
 
   function syncControls(): void {
+    const clamped = clampGridGeometry({
+      pixelSize: state.pixelSize,
+      offsetX: state.offsetX,
+      offsetY: state.offsetY,
+    });
+    state.pixelSize = clamped.pixelSize;
+    state.offsetX = clamped.offsetX;
+    state.offsetY = clamped.offsetY;
+
     inputPixelSize.value = String(state.pixelSize);
     valPixelSize.textContent = `${state.pixelSize} px`;
     void rangePixelSize.refresh?.();
@@ -294,8 +313,6 @@ export function mountApp(root: HTMLElement): void {
     const maxOffset = Math.max(0, state.pixelSize - 1);
     inputOffsetX.max = String(maxOffset);
     inputOffsetY.max = String(maxOffset);
-    state.offsetX = Math.min(state.offsetX, maxOffset);
-    state.offsetY = Math.min(state.offsetY, maxOffset);
 
     inputOffsetX.value = String(state.offsetX);
     valOffsetX.textContent = `${state.offsetX} px`;
@@ -306,8 +323,12 @@ export function mountApp(root: HTMLElement): void {
     void rangeOffsetY.refresh?.();
 
     if (state.sourceCanvas) {
-      const targetW = Math.max(1, Math.floor((state.sourceCanvas.width - state.offsetX) / state.pixelSize));
-      inputTargetWidth.value = String(targetW);
+      const { gridWidth } = computeGridDimensions(
+        state.sourceCanvas.width,
+        state.sourceCanvas.height,
+        clamped,
+      );
+      inputTargetWidth.value = String(gridWidth);
       void fieldTargetWidth.refresh?.();
     }
 
@@ -366,9 +387,7 @@ export function mountApp(root: HTMLElement): void {
     });
 
     state.result = result;
-    resultCanvas.width = result.gridWidth;
-    resultCanvas.height = result.gridHeight;
-    resultCtx.putImageData(result.imageData, 0, 0);
+    pixelBufferToCanvas(result.buffer, resultCanvas);
 
     statsLabel.textContent =
       `Source ${state.sourceCanvas.width}×${state.sourceCanvas.height} → ` +
@@ -497,7 +516,7 @@ export function mountApp(root: HTMLElement): void {
 
   function loadCanvas(canvas: HTMLCanvasElement, autoRun = true, announce = false): void {
     state.sourceCanvas = canvas;
-    state.sourceData = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height);
+    state.sourceData = canvasToPixelBuffer(canvas);
     state.paletteOverrides.clear();
 
     if (autoRun) {
@@ -522,17 +541,9 @@ export function mountApp(root: HTMLElement): void {
   }
 
   function loadImageFile(file: File): void {
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      const c = document.createElement('canvas');
-      c.width = img.naturalWidth;
-      c.height = img.naturalHeight;
-      c.getContext('2d')!.drawImage(img, 0, 0);
-      URL.revokeObjectURL(url);
-      loadCanvas(c, true, true);
-    };
-    img.src = url;
+    void loadBlobToCanvas(file).then((canvas) => {
+      loadCanvas(canvas, true, true);
+    });
   }
 
   // Garde sur disabled conforme au contrat d'accessibilité de ds-trigger
@@ -574,18 +585,13 @@ export function mountApp(root: HTMLElement): void {
   onTriggerClick(btnExport, () => {
     if (!state.result) return;
     const scale = state.exportScale;
-    const out = document.createElement('canvas');
-    out.width = state.result.gridWidth * scale;
-    out.height = state.result.gridHeight * scale;
-    const octx = out.getContext('2d')!;
-    octx.imageSmoothingEnabled = false;
-    octx.drawImage(resultCanvas, 0, 0, out.width, out.height);
+    const { dataUrl, width, height } = exportPixelBufferToPngDataUrl(state.result.buffer, scale);
 
     const a = document.createElement('a');
     a.download = `pixelclean-${state.result.gridWidth}x${state.result.gridHeight}-${scale}x.png`;
-    a.href = out.toDataURL('image/png');
+    a.href = dataUrl;
     a.click();
-    notify(`PNG exporté en ${out.width}×${out.height} (${scale}×)`);
+    notify(`PNG exporté en ${width}×${height} (${scale}×)`);
   });
 
   inputPixelSize.addEventListener('input', () => {
@@ -598,8 +604,13 @@ export function mountApp(root: HTMLElement): void {
   inputTargetWidth.addEventListener('change', () => {
     if (!state.sourceCanvas) return;
     const w = Math.max(4, Number(inputTargetWidth.value) || 16);
-    const derived = Math.max(1, Math.min(32, Math.round((state.sourceCanvas.width - state.offsetX) / w)));
-    state.pixelSize = derived;
+    state.pixelSize = derivePixelSizeFromTargetWidth(
+      state.sourceCanvas.width,
+      state.offsetX,
+      w,
+      1,
+      32,
+    );
     state.paletteOverrides.clear();
     syncControls();
     recompute();
