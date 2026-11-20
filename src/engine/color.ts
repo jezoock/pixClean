@@ -1,4 +1,4 @@
-import type { RGB } from './types';
+import type { RGB } from './types.ts';
 
 function clampChannel(n: number): number {
   return Math.max(0, Math.min(255, Math.round(n)));

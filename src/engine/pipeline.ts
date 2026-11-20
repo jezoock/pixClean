@@ -1,8 +1,8 @@
-import { applyDespeckle } from './filters';
-import { buildFrequencySortedPalette, quantizeKMeans } from './quantize';
-import { sampleGrid } from './sampler';
-import { renderIndexedBuffer } from './scaler';
-import type { PixelBuffer, ProcessOptions, ProcessResult } from './types';
+import { applyDespeckle } from './filters.ts';
+import { buildFrequencySortedPalette, quantizeKMeans } from './quantize.ts';
+import { sampleGrid } from './sampler.ts';
+import { renderIndexedBuffer } from './scaler.ts';
+import type { PixelBuffer, ProcessOptions, ProcessResult } from './types.ts';
 
 export const DEFAULT_PROCESS_OPTIONS: Readonly<ProcessOptions> = Object.freeze({
   pixelSize: 8,

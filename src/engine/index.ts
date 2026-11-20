@@ -10,23 +10,23 @@ export {
   type RGB,
   type RGBA,
   type SamplingMode,
-} from './types';
+} from './types.ts';
 
-export { hexToRgb, redmeanDistSq, rgbToHex } from './color';
+export { hexToRgb, redmeanDistSq, rgbToHex } from './color.ts';
 
 export {
   autoDetectGrid,
   clampGridGeometry,
   computeGridDimensions,
   derivePixelSizeFromTargetWidth,
-} from './grid-detect';
+} from './grid-detect.ts';
 
-export { sampleCell, sampleGrid } from './sampler';
+export { sampleCell, sampleGrid } from './sampler.ts';
 
-export { buildFrequencySortedPalette, quantizeKMeans } from './quantize';
+export { buildFrequencySortedPalette, quantizeKMeans } from './quantize.ts';
 
-export { applyDespeckle } from './filters';
+export { applyDespeckle } from './filters.ts';
 
-export { renderIndexedBuffer, scaleNearestNeighbor } from './scaler';
+export { renderIndexedBuffer, scaleNearestNeighbor } from './scaler.ts';
 
-export { DEFAULT_PROCESS_OPTIONS, processPixelArt } from './pipeline';
+export { DEFAULT_PROCESS_OPTIONS, processPixelArt } from './pipeline.ts';

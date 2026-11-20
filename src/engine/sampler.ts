@@ -1,5 +1,5 @@
-import { computeGridDimensions } from './grid-detect';
-import { createPixelBuffer, type GridGeometry, type PixelBuffer, type RGBA, type SamplingMode } from './types';
+import { computeGridDimensions } from './grid-detect.ts';
+import { createPixelBuffer, type GridGeometry, type PixelBuffer, type RGBA, type SamplingMode } from './types.ts';
 
 /**
  * Samples a single grid cell using the selected anti-mixel method.

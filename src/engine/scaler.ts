@@ -1,4 +1,4 @@
-import { createPixelBuffer, type PaletteEntry, type PixelBuffer } from './types';
+import { createPixelBuffer, type PaletteEntry, type PixelBuffer } from './types.ts';
 
 /**
  * Renders an indexed pixel buffer (`-1` for transparent, `>= 0` for palette index) into an RGBA `PixelBuffer`.

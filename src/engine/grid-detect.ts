@@ -1,4 +1,4 @@
-import type { GridDimensions, GridGeometry, PixelBuffer } from './types';
+import type { GridDimensions, GridGeometry, PixelBuffer } from './types.ts';
 
 /**
  * Clamps grid geometry so offsets remain strictly within `[0, pixelSize - 1]`.

@@ -4,28 +4,22 @@ Application web pour nettoyer les **mixels** et supprimer les **dégradés subti
 
 ## Installation
 
-### Option 1 : depuis un clone local de `dot-stash` (recommandé en dev)
-
-1. Compilez d'abord `dot-stash` dans son dossier (ex. `../dot-stash`) :
-   ```bash
-   cd ../dot-stash
-   npm install
-   npm run build:all
-   ```
-2. Dans ce projet, pointez la dépendance vers votre dossier local :
-   ```bash
-   npm install ../dot-stash
-   npm run dev
-   ```
-
-### Option 2 : depuis npm ou GitHub
+`dot-stash` est directement installé depuis l'archive de release GitHub `v0.2.0` (`dot-stash-0.2.0.tgz`) déclarée dans `package.json` :
 
 ```bash
 npm install
-# ou depuis GitHub :
-# npm install github:jezoock/dot-stash
 npm run dev
 ```
+
+Pour développer contre un clone local de `dot-stash` (ex. `../dot-stash`), compilez-le d'abord (`npm run build:all`) puis pointez la dépendance vers le dossier local (`npm install ../dot-stash`).
+
+## Commandes
+
+- `npm run dev` : serveur de développement Vite
+- `npm test` : tests unitaires du moteur algorithmique (`src/engine/`, via `node --test`, sans dépendance DOM)
+- `npm run typecheck` : vérification TypeScript de l'application (`src/`)
+- `npm run typecheck:tests` : vérification TypeScript des tests (`tests/`)
+- `npm run build` : vérification TypeScript + build de production Vite
 
 ## Composants `dot-stash` utilisés
 
