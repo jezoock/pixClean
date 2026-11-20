@@ -30,11 +30,17 @@
     "typecheck:tests": "tsc -p tsconfig.test.json --noEmit",
     "test": "node --test \"tests/**/*.test.ts\""
   },
-  "dependencies": {
-    "dot-stash": "https://github.com/jezoock/dot-stash/releases/download/v0.2.0/dot-stash-0.2.0.tgz"
+  "peerDependencies": {
+    "dot-stash": "^0.2.0"
+  },
+  "peerDependenciesMeta": {
+    "dot-stash": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@types/node": "^22.15.0",
+    "dot-stash": "https://github.com/jezoock/dot-stash/releases/download/v0.2.0/dot-stash-0.2.0.tgz",
     "sass": "^1.107.1",
     "typescript": "~5.8.3",
     "vite": "^6.2.0"

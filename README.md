@@ -9,7 +9,7 @@ Application web et bibliothèque embarquable pour nettoyer les **mixels** et sup
 
 ## Installation & Commandes
 
-`dot-stash` est directement installé depuis l'archive de release GitHub `v0.2.0` (`dot-stash-0.2.0.tgz`) déclarée dans `package.json` :
+`dot-stash` est déclaré via l'archive de release GitHub `v0.2.0` (`dot-stash-0.2.0.tgz`) et autorisé au niveau racine via `.npmrc` (`allow-remote=root`) :
 
 ```bash
 npm install
@@ -22,6 +22,21 @@ npm run dev
 - `npm run typecheck:tests` : vérification TypeScript des tests (`tests/`)
 - `npm run build` : build de production de l'application standalone (`dist/`)
 - `npm run build:lib` : build de la bibliothèque multi-entrées (`dist-lib/index.js`, `dist-lib/engine.js`, `dist-lib/pixclean.css` et déclarations `.d.ts`)
+
+### Publier & consommer une release `.tgz` (ex. dans `pixClean-desktop` ou un gestionnaire d'assets)
+
+La création d'un tag `v<version>` correspondant à `package.json` déclenche `.github/workflows/release.yml`, qui compile, teste et attache `pixclean-<version>.tgz` à la GitHub Release.
+
+Une application hôte peut ensuite installer `pixclean` (et `dot-stash` en `peerDependency` pour le mode UI) directement dans son `package.json` (avec `allow-remote=root` dans son `.npmrc`) :
+
+```json
+{
+  "dependencies": {
+    "dot-stash": "https://github.com/jezoock/dot-stash/releases/download/v0.2.0/dot-stash-0.2.0.tgz",
+    "pixclean": "https://github.com/jezoock/pixClean/releases/download/v1.0.0/pixclean-1.0.0.tgz"
+  }
+}
+```
 
 ---
 
