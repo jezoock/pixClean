@@ -1,13 +1,32 @@
 import { createPixelBuffer, scaleNearestNeighbor, type PixelBuffer } from '../engine';
 
 /**
+ * Supported browser/asset image inputs accepted by PixelClean adapters and editor.
+ */
+export type AssetImageInput =
+  | Blob
+  | File
+  | ImageData
+  | PixelBuffer
+  | HTMLCanvasElement
+  | HTMLImageElement
+  | string;
+
+function isPixelBufferLike(value: unknown): value is PixelBuffer {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Partial<PixelBuffer>;
+  return (
+    typeof candidate.width === 'number' &&
+    typeof candidate.height === 'number' &&
+    candidate.data instanceof Uint8ClampedArray
+  );
+}
+
+/**
  * Converts a pure `PixelBuffer` into a browser `ImageData` instance.
  */
 export function pixelBufferToImageData(buffer: PixelBuffer): ImageData {
-  const clamped =
-    buffer.data.byteOffset === 0 && buffer.data.byteLength === buffer.data.buffer.byteLength
-      ? new Uint8ClampedArray(buffer.data)
-      : new Uint8ClampedArray(buffer.data);
+  const clamped = new Uint8ClampedArray(buffer.data);
   return new ImageData(clamped, buffer.width, buffer.height);
 }
 
@@ -74,6 +93,76 @@ export function loadBlobToCanvas(blob: Blob): Promise<HTMLCanvasElement> {
     };
     img.src = url;
   });
+}
+
+/**
+ * Loads an image from a URL or data URI into an `HTMLCanvasElement`.
+ */
+export function loadUrlToCanvas(url: string): Promise<HTMLCanvasElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    if (!url.startsWith('data:') && !url.startsWith('blob:')) {
+      img.crossOrigin = 'anonymous';
+    }
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        reject(new Error('Unable to acquire 2D rendering context while loading image URL.'));
+        return;
+      }
+      ctx.drawImage(img, 0, 0);
+      resolve(canvas);
+    };
+    img.onerror = () => {
+      reject(new Error(`Failed to load image from URL: ${url}`));
+    };
+    img.src = url;
+  });
+}
+
+/**
+ * Normalizes any supported `AssetImageInput` (Blob, File, URL, ImageData, PixelBuffer, Canvas, Image)
+ * into an isolated `HTMLCanvasElement` without mutating the caller's source element.
+ */
+export async function loadImageInputToCanvas(input: AssetImageInput): Promise<HTMLCanvasElement> {
+  if (typeof input === 'string') {
+    return loadUrlToCanvas(input);
+  }
+  if (typeof Blob !== 'undefined' && input instanceof Blob) {
+    return loadBlobToCanvas(input);
+  }
+  if (typeof HTMLCanvasElement !== 'undefined' && input instanceof HTMLCanvasElement) {
+    const clone = document.createElement('canvas');
+    clone.width = input.width;
+    clone.height = input.height;
+    const ctx = clone.getContext('2d');
+    if (!ctx) {
+      throw new Error('Unable to acquire 2D rendering context while cloning canvas.');
+    }
+    ctx.drawImage(input, 0, 0);
+    return clone;
+  }
+  if (typeof HTMLImageElement !== 'undefined' && input instanceof HTMLImageElement) {
+    if (!input.complete) {
+      await input.decode();
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = input.naturalWidth || input.width;
+    canvas.height = input.naturalHeight || input.height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      throw new Error('Unable to acquire 2D rendering context from HTMLImageElement.');
+    }
+    ctx.drawImage(input, 0, 0);
+    return canvas;
+  }
+  if (isPixelBufferLike(input)) {
+    return pixelBufferToCanvas(input);
+  }
+  throw new Error('Unsupported asset image input type.');
 }
 
 /**

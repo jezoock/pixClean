@@ -3,7 +3,34 @@
  * sidebar controls, viewport toolbar, palette inspector, and export modal.
  */
 
-export function renderHeaderTemplate(): string {
+export interface TemplateOptions {
+  showHeader?: boolean;
+  showImportButton?: boolean;
+  showSampleButton?: boolean;
+  hasApplyAction?: boolean;
+  hasCancelAction?: boolean;
+  assetName?: string;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+export function renderHeaderTemplate(options: TemplateOptions = {}): string {
+  const {
+    showImportButton = true,
+    showSampleButton = true,
+    hasApplyAction = false,
+    hasCancelAction = false,
+    assetName,
+  } = options;
+
+  const exportMods = hasApplyAction ? 'stl-2 sm' : 'stl-1 sm';
+
   return `
     <header class="pc-header">
       <ds-title-bar class="pc-title-bar">
@@ -12,6 +39,7 @@ export function renderHeaderTemplate(): string {
         <div class="pc-brand">
           <ds-title page class="pc-brand__title"><h1>PixelClean Studio</h1></ds-title>
           <ds-badge type="info" label="Propulsé par dot-stash">dot-stash</ds-badge>
+          <ds-badge id="asset-name-badge" ${assetName ? '' : 'hidden'}>${assetName ? escapeHtml(assetName) : ''}</ds-badge>
         </div>
 
         <div slot="after" class="pc-header-actions">
@@ -22,6 +50,9 @@ export function renderHeaderTemplate(): string {
             accept="image/png,image/jpeg,image/webp"
           />
 
+          ${
+            showImportButton
+              ? `
           <ds-tooltip position="bottom" container-selector=".pc-shell">
             <ds-trigger id="btn-import" type="button" mods="stl-2 sm">
               <ds-icon type="upload-cloud"></ds-icon>
@@ -29,7 +60,13 @@ export function renderHeaderTemplate(): string {
             </ds-trigger>
             <span slot="message">Importer une image PNG, JPEG ou WebP (ou glisser-déposer / Ctrl+V)</span>
           </ds-tooltip>
+              `
+              : ''
+          }
 
+          ${
+            showSampleButton
+              ? `
           <ds-tooltip position="bottom" container-selector=".pc-shell">
             <ds-trigger id="btn-sample" type="button" mods="stl-3 sm">
               <ds-icon type="picture"></ds-icon>
@@ -37,14 +74,42 @@ export function renderHeaderTemplate(): string {
             </ds-trigger>
             <span slot="message">Charger un sprite pixel art corrompu de démonstration</span>
           </ds-tooltip>
+              `
+              : ''
+          }
 
           <ds-tooltip position="bottom-right" container-selector=".pc-shell">
-            <ds-trigger id="btn-export" type="button" mods="stl-1 sm">
+            <ds-trigger id="btn-export" type="button" mods="${exportMods}">
               <ds-icon type="download-cloud"></ds-icon>
               <span>Exporter PNG</span>
             </ds-trigger>
             <span slot="message">Prévisualiser et exporter l'image nettoyée en PNG sans flou</span>
           </ds-tooltip>
+
+          ${
+            hasCancelAction
+              ? `
+          <ds-trigger id="btn-cancel" type="button" mods="stl-3 sm">
+            <ds-icon type="cancel"></ds-icon>
+            <span>Annuler</span>
+          </ds-trigger>
+              `
+              : ''
+          }
+
+          ${
+            hasApplyAction
+              ? `
+          <ds-tooltip position="bottom-right" container-selector=".pc-shell">
+            <ds-trigger id="btn-apply" type="button" mods="stl-1 sm">
+              <ds-icon type="ok"></ds-icon>
+              <span>Appliquer</span>
+            </ds-trigger>
+            <span slot="message">Valider et renvoyer l'asset nettoyé vers l'application hôte</span>
+          </ds-tooltip>
+              `
+              : ''
+          }
         </div>
       </ds-title-bar>
     </header>
@@ -368,11 +433,13 @@ export function renderExportModalTemplate(): string {
   `;
 }
 
-export function renderAppShellTemplate(): string {
+export function renderAppShellTemplate(options: TemplateOptions = {}): string {
+  const showHeader = options.showHeader !== false;
+
   return `
-    <div class="pc-shell">
+    <div class="pc-shell${showHeader ? '' : ' pc-shell--no-header'}">
       <ds-rsp></ds-rsp>
-      ${renderHeaderTemplate()}
+      ${showHeader ? renderHeaderTemplate(options) : ''}
       <div class="pc-workspace">
         ${renderSidebarTemplate()}
         ${renderMainTemplate()}
