@@ -1,0 +1,24 @@
+{
+  "name": "pixelclean-dot-stash",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "PixelClean Studio — nettoyage de mixels et uniformisation de palette pixel art, propulsé par dot-stash.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "dot-stash": "^0.2.0"
+  },
+  "devDependencies": {
+    "sass": "^1.107.1",
+    "typescript": "~5.8.3",
+    "vite": "^6.2.0"
+  }
+}
