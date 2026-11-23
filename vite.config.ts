@@ -5,7 +5,6 @@ export default defineConfig({
     preprocessorOptions: {
       scss: {
         api: 'modern-compiler',
-        loadPaths: ['node_modules'],
       },
     },
   },
